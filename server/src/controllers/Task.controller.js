@@ -26,11 +26,48 @@ export const createTask = async (req, res) => {
 // @access  Private
 export const getUserTasks = async (req, res) => {
   try {
-    const tasks = await Task.find({ user: req.user._id }).sort({
-      createdAt: -1,
-    });
+    const {
+      status,
+      priority,
+      sort = "createdAt",
+      order = "desc",
+      page = 1,
+      limit = 10,
+    } = req.query;
 
-    res.status(200).json(tasks);
+    // Convert to numbers
+    const pageNumber = Number(page) || 1;
+    const limitNumber = Number(limit) || 10;
+
+    // Base filter (always user-specific)
+    const filter = { user: req.user._id };
+
+    // Optional filters
+    if (status) filter.status = status;
+    if (priority) filter.priority = priority;
+
+    // Sorting
+    const sortOption = {
+      [sort]: order === "asc" ? 1 : -1,
+    };
+
+    // Pagination
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const tasks = await Task.find(filter)
+      .sort(sortOption)
+      .skip(skip)
+      .limit(limitNumber);
+
+    // Total count for pagination metadata
+    const total = await Task.countDocuments(filter);
+
+    res.status(200).json({
+      total,
+      page: pageNumber,
+      pages: Math.ceil(total / limitNumber),
+      tasks,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
